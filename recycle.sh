@@ -119,8 +119,8 @@ setup_ssh_and_banner() {
     "
 
     if [ -n "$banner_text" ]; then
-        echo "$banner_text" | sudo tee /tmp/${container_name}_banner.txt
         sudo lxc-attach -n $container_name -- bash -c "
+            echo '$banner_text' > /etc/ssh/sshd-banner
             echo 'Banner /etc/ssh/sshd-banner' >> /etc/ssh/sshd_config
             systemctl enable ssh
             systemctl restart ssh
