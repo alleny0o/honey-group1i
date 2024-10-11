@@ -20,6 +20,10 @@ port=$4
 # Function to remove existing container and rules
 remove_existing() {
     echo "Removing existing container and rules for $container_name"
+
+    # Stop and delete PM2 process if it exists
+    sudo pm2 stop $container_name 2>/dev/null
+    sudo pm2 delete $container_name 2>/dev/null
     
     # Remove iptables rules
     sudo iptables -t nat -D PREROUTING -d $external_ip -p tcp --dport $port -j DNAT --to-destination 127.0.0.1:8080 2>/dev/null
@@ -51,8 +55,8 @@ create_container() {
 
 # Function to start MITM
 start_mitm() {
-    echo "Starting MITM"
-    sudo node /home/student/MITM/mitm.js -n "$container_name" -i "$container_ip" -p 8080 --auto-access --auto-access-fixed 1 --debug &
+    echo "Starting MITM with PM2"
+    sudo pm2 start /home/student/MITM/mitm.js --name "$container_name" -- -n "$container_name" -i "$container_ip" -p 8080 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file "/tmp/${container_name}_banner.txt"
     sleep 5  # Give MITM some time to start up
 }
 
@@ -115,8 +119,8 @@ setup_ssh_and_banner() {
     "
 
     if [ -n "$banner_text" ]; then
-        echo "$banner_text" | sudo tee /var/lib/lxc/$container_name/rootfs/etc/ssh/sshd-banner
         sudo lxc-attach -n $container_name -- bash -c "
+            echo '$banner_text' > /etc/ssh/sshd-banner
             echo 'Banner /etc/ssh/sshd-banner' >> /etc/ssh/sshd_config
             systemctl enable ssh
             systemctl restart ssh
