@@ -17,13 +17,27 @@ container_ip=$2
 external_ip=$3
 port=$4
 
+# Function to get the MITM port for each container
+get_mitm_port() {
+    case "$container_name" in
+        "ethical") echo "8080" ;;
+        "legal") echo "8082" ;;
+        "technical") echo "8084" ;;
+        "none") echo "8086" ;;
+        *) echo "8080" ;; # Default to 8080 if container name doesn't match
+    esac
+}
+
+# Get the MITM port
+mitm_port=$(get_mitm_port)
+
 # Function to remove existing container and rules
 remove_existing() {
     echo "Removing existing container and rules for $container_name"
     
     # Remove iptables rules
-    sudo iptables -t nat -D PREROUTING -d $external_ip -p tcp --dport $port -j DNAT --to-destination 127.0.0.1:8080 2>/dev/null
-    sudo iptables -t nat -D PREROUTING -d 127.0.0.1 -p tcp --dport 8080 -j DNAT --to-destination $container_ip:22 2>/dev/null
+    sudo iptables -t nat -D PREROUTING -d $external_ip -p tcp --dport $port -j DNAT --to-destination 127.0.0.1:$mitm_port 2>/dev/null
+    sudo iptables -t nat -D PREROUTING -d 127.0.0.1 -p tcp --dport $mitm_port -j DNAT --to-destination $container_ip:22 2>/dev/null
     sudo iptables -t nat -D PREROUTING -d $external_ip -j DNAT --to-destination $container_ip 2>/dev/null
     sudo iptables -t nat -D POSTROUTING -s $container_ip -j SNAT --to-source $external_ip 2>/dev/null
     
@@ -53,7 +67,7 @@ create_container() {
 start_mitm() {
 
     echo "Starting MITM for $container_name"
-    sudo bash -c "node MITM/mitm.js -n '$container_name' -i '$container_ip' -p 8080 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file ./banners/${container_name}.txt & echo \$! > /var/run/mitm_$container_name.pid"
+    sudo bash -c "node MITM/mitm.js -n '$container_name' -i '$container_ip' -p $mitm_port --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file ./banners/${container_name}.txt & echo \$! > /var/run/mitm_$container_name.pid"
     mitm_pid=$(sudo cat /var/run/mitm_$container_name.pid)
     echo "MITM server started with PID $mitm_pid for $container_name"
     sleep 5 
@@ -64,9 +78,9 @@ setup_networking() {
     echo "Setting up networking for $container_name"
     sudo lxc-attach -n $container_name -- bash -c "ip addr add $container_ip/24 dev eth0"
     
-    # MITM rules for SSH (assuming MITM listens on port 8080)
-    sudo iptables -t nat -I PREROUTING 1 -d $external_ip -p tcp --dport $port -j DNAT --to-destination 127.0.0.1:8080
-    sudo iptables -t nat -A PREROUTING -d 127.0.0.1 -p tcp --dport 8080 -j DNAT --to-destination $container_ip:22
+    # MITM rules for SSH 
+    sudo iptables -t nat -I PREROUTING 1 -d $external_ip -p tcp --dport $port -j DNAT --to-destination 127.0.0.1:$mitm_port
+    sudo iptables -t nat -A PREROUTING -d 127.0.0.1 -p tcp --dport $mitm_port -j DNAT --to-destination $container_ip:22
     
     # General rules for other traffic
     sudo iptables -t nat -A PREROUTING -d $external_ip -j DNAT --to-destination $container_ip
