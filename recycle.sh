@@ -21,20 +21,16 @@ port=$4
 remove_existing() {
     echo "Removing existing container and rules for $container_name"
 
-    # Stop and delete PM2 process if it exists
-    sudo pm2 stop $container_name 2>/dev/null
-    sudo pm2 delete $container_name 2>/dev/null
-    
     # Remove iptables rules
     sudo iptables -t nat -D PREROUTING -d $external_ip -p tcp --dport $port -j DNAT --to-destination 127.0.0.1:8080 2>/dev/null
     sudo iptables -t nat -D PREROUTING -d 127.0.0.1 -p tcp --dport 8080 -j DNAT --to-destination $container_ip:22 2>/dev/null
     sudo iptables -t nat -D PREROUTING -d $external_ip -j DNAT --to-destination $container_ip 2>/dev/null
     sudo iptables -t nat -D POSTROUTING -s $container_ip -j SNAT --to-source $external_ip 2>/dev/null
-    
+
     # Stop and destroy the container
     sudo lxc-stop -n $container_name -k 2>/dev/null
     sudo lxc-destroy -n $container_name 2>/dev/null
-    
+
     echo "Existing container and rules removed."
 }
 
@@ -55,8 +51,8 @@ create_container() {
 
 # Function to start MITM
 start_mitm() {
-    echo "Starting MITM with PM2"
-    sudo pm2 start /home/student/MITM/mitm.js --name "$container_name" -- -n "$container_name" -i "$container_ip" -p 8080 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file "/tmp/${container_name}_banner.txt"
+    echo "Starting MITM"
+    sudo node /home/student/MITM/mitm.js -n "$container_name" -i "$container_ip" -p 8080 --auto-access --auto-access-fixed 1 --debug &
     sleep 5  # Give MITM some time to start up
 }
 
@@ -64,14 +60,16 @@ start_mitm() {
 setup_networking() {
     echo "Setting up networking for $container_name"
     sudo lxc-attach -n $container_name -- bash -c "ip addr add $container_ip/24 dev eth0"
-    
+
     # MITM rules for SSH (assuming MITM listens on port 8080)
     sudo iptables -t nat -I PREROUTING 1 -d $external_ip -p tcp --dport $port -j DNAT --to-destination 127.0.0.1:8080
     sudo iptables -t nat -A PREROUTING -d 127.0.0.1 -p tcp --dport 8080 -j DNAT --to-destination $container_ip:22
-    
+
     # General rules for other traffic
     sudo iptables -t nat -A PREROUTING -d $external_ip -j DNAT --to-destination $container_ip
     sudo iptables -t nat -A POSTROUTING -s $container_ip -j SNAT --to-source $external_ip
+    sudo sysctl -w net.ipv4.ip_forward=1
+    sudo sysctl -w net.ipv4.conf.all.route_localnet=1
 }
 
 # Function to set up firewall
@@ -109,7 +107,7 @@ setup_ssh_and_banner() {
     esac
 
     echo "Setting up SSH server and banner for $container_name"
-    
+
     # Install SSH server if it's not already installed
     sudo lxc-attach -n $container_name -- bash -c "
         if ! dpkg -s openssh-server >/dev/null 2>&1; then
@@ -119,8 +117,8 @@ setup_ssh_and_banner() {
     "
 
     if [ -n "$banner_text" ]; then
+        echo "$banner_text" | sudo tee /var/lib/lxc/$container_name/rootfs/etc/ssh/sshd-banner
         sudo lxc-attach -n $container_name -- bash -c "
-            echo '$banner_text' > /etc/ssh/sshd-banner
             echo 'Banner /etc/ssh/sshd-banner' >> /etc/ssh/sshd_config
             systemctl enable ssh
             systemctl restart ssh
@@ -131,7 +129,7 @@ setup_ssh_and_banner() {
 # Function to verify SSH banner and server status
 verify_ssh_setup() {
     echo "Verifying SSH setup for $container_name"
-    
+
     # Check if SSH server is installed and running
     sudo lxc-attach -n $container_name -- bash -c "
         if dpkg -s openssh-server >/dev/null 2>&1; then
@@ -146,7 +144,7 @@ verify_ssh_setup() {
             echo 'SSH server is not installed'
         fi
     "
-    
+
     # Check if the banner file exists
     sudo lxc-attach -n $container_name -- bash -c "
         if [ -f /etc/ssh/sshd-banner ]; then
@@ -157,7 +155,7 @@ verify_ssh_setup() {
             echo 'Banner file not found'
         fi
     "
-    
+
     # Check if the Banner directive is in sshd_config
     echo "Checking sshd_config for Banner directive:"
     sudo lxc-attach -n $container_name -- bash -c "grep Banner /etc/ssh/sshd_config"
@@ -169,12 +167,12 @@ scenario=$(select_random_scenario)
 echo "Selected scenario for new container: $scenario"
 
 create_container
-start_mitm  # Start MITM before setting up networking
-setup_networking
 setup_firewall
-setup_honey
 setup_ssh_and_banner "$scenario"
 verify_ssh_setup
+start_mitm  # Start MITM before setting up networking
+setup_networking
+setup_honey
 
 echo "Container $container_name has been recycled successfully with scenario: $scenario"
 
