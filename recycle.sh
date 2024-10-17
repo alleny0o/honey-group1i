@@ -20,26 +20,26 @@ port=$4
 # Function to remove existing container and rules
 remove_existing() {
     echo "Removing existing container and rules for $container_name"
-
+    
     # Remove iptables rules
     sudo iptables -t nat -D PREROUTING -d $external_ip -p tcp --dport $port -j DNAT --to-destination 127.0.0.1:8080 2>/dev/null
     sudo iptables -t nat -D PREROUTING -d 127.0.0.1 -p tcp --dport 8080 -j DNAT --to-destination $container_ip:22 2>/dev/null
     sudo iptables -t nat -D PREROUTING -d $external_ip -j DNAT --to-destination $container_ip 2>/dev/null
     sudo iptables -t nat -D POSTROUTING -s $container_ip -j SNAT --to-source $external_ip 2>/dev/null
-
+    
     # Stop and destroy the container
     sudo lxc-stop -n $container_name -k 2>/dev/null
     sudo lxc-destroy -n $container_name 2>/dev/null
 
-    echo "Existing container and rules removed."
+
+    mitm_pid=$(sudo cat /var/run/mitm_$container_name.pid)
+    echo "Killing MITM process with PID $mitm_pid"
+    sudo kill -9 $mitm_pid 2>/dev/null
+    sudo rm /var/run/mitm_$container_name.pid
+
+    echo "Existing container and rules and MITM removed."
 }
 
-# Function to randomly select a scenario
-select_random_scenario() {
-    scenarios=("legal" "ethical" "technical" "none")
-    selected_scenario=${scenarios[$RANDOM % ${#scenarios[@]}]}
-    echo $selected_scenario
-}
 
 # Function to create and set up container
 create_container() {
@@ -51,20 +51,23 @@ create_container() {
 
 # Function to start MITM
 start_mitm() {
-    echo "Starting MITM"
-    sudo node /home/student/MITM/mitm.js -n "$container_name" -i "$container_ip" -p 8080 --auto-access --auto-access-fixed 1 --debug &
-    sleep 5  # Give MITM some time to start up
+
+    echo "Starting MITM for $container_name"
+    sudo bash -c "node MITM/mitm.js -n '$container_name' -i '$container_ip' -p 8080 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file ./banners/${container_name}.txt & echo \$! > /var/run/mitm_$container_name.pid"
+    mitm_pid=$(sudo cat /var/run/mitm_$container_name.pid)
+    echo "MITM server started with PID $mitm_pid for $container_name"
+    sleep 5 
 }
 
 # Function to set up networking
 setup_networking() {
     echo "Setting up networking for $container_name"
     sudo lxc-attach -n $container_name -- bash -c "ip addr add $container_ip/24 dev eth0"
-
+    
     # MITM rules for SSH (assuming MITM listens on port 8080)
     sudo iptables -t nat -I PREROUTING 1 -d $external_ip -p tcp --dport $port -j DNAT --to-destination 127.0.0.1:8080
     sudo iptables -t nat -A PREROUTING -d 127.0.0.1 -p tcp --dport 8080 -j DNAT --to-destination $container_ip:22
-
+    
     # General rules for other traffic
     sudo iptables -t nat -A PREROUTING -d $external_ip -j DNAT --to-destination $container_ip
     sudo iptables -t nat -A POSTROUTING -s $container_ip -j SNAT --to-source $external_ip
@@ -87,27 +90,9 @@ setup_honey() {
     sudo lxc-attach -n $container_name -- bash -c "echo 'user:password' > /opt/honey/credentials.txt"
 }
 
-# Function to set up SSH banner
-setup_ssh_and_banner() {
-    local scenario=$1
-    local banner_text=""
-    case $scenario in
-        legal)
-            banner_text="WARNING: Unauthorized access is prohibited and will be prosecuted to the fullest extent of the law."
-            ;;
-        ethical)
-            banner_text="NOTICE: This system is for authorized users only. If you are not authorized, please disconnect immediately."
-            ;;
-        technical)
-            banner_text="SYSTEM INFO: Ubuntu 20.04 LTS - Kernel $(uname -r) - All connections are monitored and recorded."
-            ;;
-        none)
-            banner_text=""
-            ;;
-    esac
-
-    echo "Setting up SSH server and banner for $container_name"
-
+# Function to set up SSH
+setup_ssh() {
+    echo "Setting up SSH server $container_name"
     # Install SSH server if it's not already installed
     sudo lxc-attach -n $container_name -- bash -c "
         if ! dpkg -s openssh-server >/dev/null 2>&1; then
@@ -115,21 +100,12 @@ setup_ssh_and_banner() {
             apt-get install -y openssh-server
         fi
     "
-
-    if [ -n "$banner_text" ]; then
-        echo "$banner_text" | sudo tee /var/lib/lxc/$container_name/rootfs/etc/ssh/sshd-banner
-        sudo lxc-attach -n $container_name -- bash -c "
-            echo 'Banner /etc/ssh/sshd-banner' >> /etc/ssh/sshd_config
-            systemctl enable ssh
-            systemctl restart ssh
-        "
-    fi
 }
 
 # Function to verify SSH banner and server status
 verify_ssh_setup() {
     echo "Verifying SSH setup for $container_name"
-
+    
     # Check if SSH server is installed and running
     sudo lxc-attach -n $container_name -- bash -c "
         if dpkg -s openssh-server >/dev/null 2>&1; then
@@ -144,37 +120,21 @@ verify_ssh_setup() {
             echo 'SSH server is not installed'
         fi
     "
-
-    # Check if the banner file exists
-    sudo lxc-attach -n $container_name -- bash -c "
-        if [ -f /etc/ssh/sshd-banner ]; then
-            echo 'Banner file exists'
-            echo 'Banner contents:'
-            cat /etc/ssh/sshd-banner
-        else
-            echo 'Banner file not found'
-        fi
-    "
-
-    # Check if the Banner directive is in sshd_config
-    echo "Checking sshd_config for Banner directive:"
-    sudo lxc-attach -n $container_name -- bash -c "grep Banner /etc/ssh/sshd_config"
 }
 
 # Main execution
 remove_existing
-scenario=$(select_random_scenario)
-echo "Selected scenario for new container: $scenario"
+echo "Selected scenario for new container: $container_name"
 
 create_container
 setup_firewall
-setup_ssh_and_banner "$scenario"
+setup_ssh
 verify_ssh_setup
 start_mitm  # Start MITM before setting up networking
 setup_networking
 setup_honey
 
-echo "Container $container_name has been recycled successfully with scenario: $scenario"
+sudo echo "Container $container_name has been recycled successfully with scenario: $scenario"
 
 # Log the recycling operation
-echo "$(date '+%Y-%m-%d %H:%M:%S'): Recycled container $container_name with scenario $scenario" >> /var/log/honeypot_recycling.log
+sudo echo "$(date '+%Y-%m-%d %H:%M:%S'): Recycled container $container_name with scenario $scenario" >> /var/log/honeypot_recycling.log
