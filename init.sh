@@ -7,6 +7,8 @@ sudo iptables-restore ./utils/iptables_reset.txt
 sudo ./utils/delete.sh
 
 # initialize default DIT Firewall Rules
+sudo modprobe br_netfilter
+sudo sysctl -p /etc/sysctl.conf
 sudo ./utils/firewall_rules.sh
 
 # our ips
@@ -25,7 +27,8 @@ sudo lxc-start -n template
 # MUST WAIT FOR CONTAINER TO START
 sleep 10
 
-# TODO: set up honey files in template container
+# TODO - Add Honey to Container
+sudo ./setup_honey.sh template
 
 # set up firewall
 sudo lxc-attach -n template -- bash -c "apt update && apt install -y ufw"
