@@ -95,7 +95,7 @@ do
     sudo iptables -w --table nat --insert PREROUTING --source 0.0.0.0/0 --destination $external_ip --protocol tcp --dport 22 --jump DNAT --to-destination "10.0.3.1:$mitm_port" 
     sudo sysctl -w net.ipv4.ip_forward=1
 
-    sudo ./attacker_status.sh $container_name $container_ip $external_ip $mitm_port
+    sudo ./attacker_status.sh $container_name $container_ip $external_ip $mitm_port &
 
     # sudo ./utils/tracker.sh "./logs/${banner}/${container_name}" $container_name $external_ip &
 
