@@ -1,10 +1,7 @@
 #!/bin/bash
 
-# reset iptable rules
-sudo iptables-restore ./utils/iptables_reset.txt
-
-# stop PM2 process and stop/destroy all containers (and other stuff if needed)
-sudo ./utils/delete.sh
+# reset everything
+sudo ./reset.sh
 
 # initialize default DIT Firewall Rules
 sudo ./utils/firewall_rules.sh
@@ -16,7 +13,7 @@ ips=( "128.8.238.16" "128.8.238.41" "128.8.238.59" "128.8.238.191" )
 ips=( $(shuf -e "${ips[@]}") )
 
 # banner types
-scenarios=( "ethical" "legal" "none" "technical" )
+banners=( "ethical" "legal" "none" "technical" )
 
 # create baseline template container
 sudo DOWNLOAD_KEYSERVER="keyserver.ubuntu.com" lxc-create -n template -t download -- -d ubuntu -r focal -a amd64
@@ -59,8 +56,8 @@ do
 
     # extract variables for container
     external_ip=${ips[$i]}
-    scenario=${scenarios[$i]}
-    container_name="${scenario}"
+    banner=${banners[$i]}
+    container_name="${banner}_${external_ip}"
     date=$(date "+%F-%H-%M-%S")
     mask=24
 
@@ -73,7 +70,7 @@ do
     mitm_port=$(sudo cat ./ports/${external_ip}_port.txt)
 
     # set up MITM server
-    if sudo pm2 -l "./logs/$container_name/$date" start MITM/mitm.js --name "$container_name" -- -n "$container_name" -i "$container_ip" -p $mitm_port --mitm-ip 10.0.3.1 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file ./banners/${container_name}.txt; then
+    if sudo pm2 -l "./logs/${banner}/${date}_${container_name}" start MITM/mitm.js --name "$container_name" -- -n "$container_name" -i "$container_ip" -p $mitm_port --mitm-ip 10.0.3.1 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file ./banners/${banner}.txt; then
         echo "MITM server started successfully"
     else
         echo "Failed to start MITM server"
@@ -92,7 +89,7 @@ do
     sudo iptables -w --table nat --insert PREROUTING --source 0.0.0.0/0 --destination $external_ip --protocol tcp --dport 22 --jump DNAT --to-destination "10.0.3.1:$mitm_port" 
     sudo sysctl -w net.ipv4.ip_forward=1
 
-    sudo ./utils/tracker.sh ./logs/$container_name/$date $container_name $external_ip &
+    sudo ./utils/tracker.sh "./logs/${banner}/${date}_${container_name}" $container_name $external_ip &
 
 done
 

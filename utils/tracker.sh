@@ -15,7 +15,7 @@ while sudo inotifywait -e modify $file; do
 		echo "			TRIGGERING RECYCLE SCRIPT"
 		echo "*******************************************************************"
 		echo "`date "+%F-%H-%M-%S"`: Triggering recycle script on container $container"
-		sudo /home/student/recycle.sh $container $external_ip
+		sudo /home/student/recycle_v2.sh $container $external_ip
 		exit 0
 	fi
 done
