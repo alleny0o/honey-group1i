@@ -86,6 +86,9 @@ create_container() {
     sudo lxc-start -n $new_container_name
     sleep 10  # Wait for container to start
 
+    # TODO - Add Honey to Container
+    sudo ./setup_honey.sh $new_container_name
+
     # Get the new container IP
     container_ip=$(sudo lxc-info -n $new_container_name -iH)
     if [ -z "$container_ip" ]; then
