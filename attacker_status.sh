@@ -4,7 +4,7 @@ print_usage() {
     echo "Usage: $0 <container_name> <container_ip> <external_ip> <mitm_port>"
 }
 
-if [ $# -ne 3 ]; then
+if [ $# -ne 4 ]; then
     print_usage
     exit 1
 fi
