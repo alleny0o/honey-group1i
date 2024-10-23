@@ -185,7 +185,7 @@ sleep 5  # Give MITM server time to start
 setup_networking
 setup_honey
 
-sudo ./attacker_status.sh $container_name $container_ip $external_ip $mitm_port
+sudo ./attacker_status.sh $container_name $container_ip $external_ip $mitm_port &
 
 # sudo ./utils/tracker.sh "./logs/${new_banner}/${new_container_name}" $new_container_name $external_ip &
 
