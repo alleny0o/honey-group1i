@@ -63,8 +63,8 @@ do
     # extract variables for container
     external_ip=${ips[$i]}
     banner=${banners[$i]}
-    container_name="${banner}_${external_ip}"
     date=$(date "+%F-%H-%M-%S")
+    container_name="${date}_${banner}_${external_ip}"
     mask=24
 
     sudo lxc-copy -n template -N $container_name
@@ -76,7 +76,7 @@ do
     mitm_port=$(sudo cat ./ports/${external_ip}_port.txt)
 
     # set up MITM server
-    if sudo pm2 -l "./logs/${banner}/${date}_${container_name}" start MITM/mitm.js --name "$container_name" -- -n "$container_name" -i "$container_ip" -p $mitm_port --mitm-ip 10.0.3.1 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file ./banners/${banner}.txt; then
+    if sudo pm2 -l "./logs/${banner}/${container_name}" start MITM/mitm.js --name "$container_name" -- -n "$container_name" -i "$container_ip" -p $mitm_port --mitm-ip 10.0.3.1 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file ./banners/${banner}.txt; then
         echo "MITM server started successfully"
     else
         echo "Failed to start MITM server"
@@ -95,7 +95,9 @@ do
     sudo iptables -w --table nat --insert PREROUTING --source 0.0.0.0/0 --destination $external_ip --protocol tcp --dport 22 --jump DNAT --to-destination "10.0.3.1:$mitm_port" 
     sudo sysctl -w net.ipv4.ip_forward=1
 
-    sudo ./utils/tracker.sh "./logs/${banner}/${date}_${container_name}" $container_name $external_ip &
+    sudo ./attacker_status.sh $container_name $container_ip $external_ip $mitm_port
+
+    # sudo ./utils/tracker.sh "./logs/${banner}/${container_name}" $container_name $external_ip &
 
 done
 
