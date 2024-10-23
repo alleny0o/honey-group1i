@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# reset everything
-sudo ./reset.sh
+# reset iptable rules
+sudo iptables-restore ./utils/iptables_reset.txt
+
+# stop PM2 process and stop/destroy all containers (and other stuff if needed)
+sudo ./utils/delete.sh
 
 # initialize default DIT Firewall Rules
 sudo ./utils/firewall_rules.sh
@@ -18,6 +21,9 @@ banners=( "ethical" "legal" "none" "technical" )
 # create baseline template container
 sudo DOWNLOAD_KEYSERVER="keyserver.ubuntu.com" lxc-create -n template -t download -- -d ubuntu -r focal -a amd64
 sudo lxc-start -n template
+
+# MUST WAIT FOR CONTAINER TO START
+sleep 10
 
 # TODO: set up honey files in template container
 

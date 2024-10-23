@@ -166,7 +166,7 @@ sleep 5  # Give MITM server time to start
 setup_networking
 setup_honey
 
-sudo ./utils/tracker.sh "./logs/${banner}/${date}_${new_container_name}" $new_container_name $external_ip &
+sudo ./utils/tracker.sh "./logs/${new_banner}/${date}_${new_container_name}" $new_container_name $external_ip &
 
 sudo echo "Container $container_name has been recycled successfully"
 
