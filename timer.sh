@@ -21,12 +21,10 @@ countdown() {
     done
 }
 
-while true; do
-    echo "Starting the recycling process for $container_name."
-    countdown 10
+echo "Starting the recycling process for $container_name."
+countdown 600
 
-    echo "Recycling the container $container_name"
-    sudo ./recycle_v2.sh $container_name $external_ip
-done
+echo "Recycling the container $container_name"
+sudo ./recycle_v2.sh $container_name $external_ip
 
 exit 0
