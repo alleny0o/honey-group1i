@@ -24,3 +24,6 @@ while true; do
 
     echo "Recycling the container $container_name"
     sudo ./recycle_v2.sh $container_name $external_ip
+done
+
+exit 0
