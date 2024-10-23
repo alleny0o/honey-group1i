@@ -169,3 +169,5 @@ setup_honey
 sudo ./utils/tracker.sh "./logs/${banner}/${date}_${new_container_name}" $new_container_name $external_ip &
 
 sudo echo "Container $container_name has been recycled successfully"
+
+exit 0
