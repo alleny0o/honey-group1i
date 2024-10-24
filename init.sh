@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # reset iptable rules
-sudo iptables-restore ./utils/iptables_reset.txt
+sudo iptables-restore /home/student/utils/iptables_reset.txt
 
 # stop PM2 process and stop/destroy all containers (and other stuff if needed)
-sudo ./utils/delete.sh
+sudo /home/student/utils/delete.sh
 
 # initialize default DIT Firewall Rules
 sudo modprobe br_netfilter
 sudo sysctl -p /etc/sysctl.conf
-sudo ./utils/firewall_rules.sh
+sudo /home/student/utils/firewall_rules.sh
 
 # our ips
 ips=( "128.8.238.16" "128.8.238.41" "128.8.238.59" "128.8.238.191" )
@@ -28,7 +28,7 @@ sudo lxc-start -n template
 sleep 10
 
 # TODO - Add Honey to Container
-sudo ./setup_honey.sh template
+sudo /home/student/setup_honey.sh template
 
 # set up firewall
 sudo lxc-attach -n template -- bash -c "apt update && apt install -y ufw"
@@ -76,10 +76,10 @@ do
 
     container_ip=$(sudo lxc-info -n $container_name -iH)
 
-    mitm_port=$(sudo cat ./ports/${external_ip}_port.txt)
+    mitm_port=$(sudo cat /home/student/ports/${external_ip}_port.txt)
 
     # set up MITM server
-    if sudo pm2 -l "./logs/${banner}/${container_name}" start MITM/mitm.js --name "$container_name" -- -n "$container_name" -i "$container_ip" -p $mitm_port --mitm-ip 10.0.3.1 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file ./banners/${banner}.txt; then
+    if sudo pm2 -l "/home/student/logs/${banner}/${container_name}" start /home/student/MITM/mitm.js --name "$container_name" -- -n "$container_name" -i "$container_ip" -p $mitm_port --mitm-ip 10.0.3.1 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file /home/student/banners/${banner}.txt; then
         echo "MITM server started successfully"
     else
         echo "Failed to start MITM server"
@@ -98,9 +98,9 @@ do
     sudo iptables -w --table nat --insert PREROUTING --source 0.0.0.0/0 --destination $external_ip --protocol tcp --dport 22 --jump DNAT --to-destination "10.0.3.1:$mitm_port" 
     sudo sysctl -w net.ipv4.ip_forward=1
 
-    sudo ./attacker_status.sh $container_name $container_ip $external_ip $mitm_port &
+    sudo /home/student/attacker_status.sh $container_name $container_ip $external_ip $mitm_port &
 
-    # sudo ./utils/tracker.sh "./logs/${banner}/${container_name}" $container_name $external_ip &
+    # sudo /home/student/utils/tracker.sh "/home/student/logs/${banner}/${container_name}" $container_name $external_ip &
 
 done
 

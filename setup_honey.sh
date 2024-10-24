@@ -12,7 +12,7 @@ fi
 container_name=$1
 
 # Copy the existing student_files directory into the container
-sudo cp -r ./student_files "/var/lib/lxc/${container_name}/rootfs/root/"
+sudo cp -r /home/student/student_files "/var/lib/lxc/${container_name}/rootfs/root/"
     
 # Set proper permissions inside the container
 sudo lxc-attach -n "$container_name" -- bash -c '
