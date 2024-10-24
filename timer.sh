@@ -25,6 +25,6 @@ echo "Starting the recycling process for $container_name."
 countdown 600
 
 echo "Recycling the container $container_name"
-sudo ./recycle_v2.sh $container_name $external_ip
+sudo /home/student/recycle_v2.sh $container_name $external_ip
 
 exit 0

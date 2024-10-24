@@ -18,11 +18,11 @@ mask=24
 date=$(date "+%F-%H-%M-%S")
 
 # Get the MITM port
-mitm_port=$(sudo cat "./ports/${external_ip}_port.txt")
+mitm_port=$(sudo cat "/home/student/ports/${external_ip}_port.txt")
 
 # Function to get the attacker IP from the log file
 get_attacker_ip() {
-    local log_file="./MITM/logs/authentication_attempts/${container_name}.log"
+    local log_file="/home/student/MITM/logs/authentication_attempts/${container_name}.log"
     if [ -f "$log_file" ] && [ -s "$log_file" ]; then
         local attacker_ip=$(awk -F';' '{print $2}' "$log_file" | head -1)
         echo "$attacker_ip"
@@ -87,7 +87,7 @@ create_container() {
     sleep 10  # Wait for container to start
 
     # TODO - Add Honey to Container
-    sudo ./setup_honey.sh $new_container_name
+    sudo /home/student/setup_honey.sh $new_container_name
 
     # Get the new container IP
     container_ip=$(sudo lxc-info -n $new_container_name -iH)
@@ -101,7 +101,7 @@ create_container() {
 # Start MITM server
 start_mitm() {
     echo "Starting MITM for $new_container_name"
-    if sudo pm2 -l "./logs/${new_banner}/${new_container_name}" start MITM/mitm.js --name "$new_container_name" -- -n "$new_container_name" -i "$container_ip" -p $mitm_port --mitm-ip 10.0.3.1 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file ./banners/${new_banner}.txt; then
+    if sudo pm2 -l "/home/student/logs/${new_banner}/${new_container_name}" start MITM/mitm.js --name "$new_container_name" -- -n "$new_container_name" -i "$container_ip" -p $mitm_port --mitm-ip 10.0.3.1 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file /home/student/banners/${new_banner}.txt; then
         echo "MITM server started successfully"
     else
         echo "Failed to start MITM server"
@@ -188,9 +188,9 @@ sleep 5  # Give MITM server time to start
 setup_networking
 setup_honey
 
-sudo ./attacker_status.sh $container_name $container_ip $external_ip $mitm_port &
+sudo /home/student/attacker_status.sh $container_name $container_ip $external_ip $mitm_port &
 
-# sudo ./utils/tracker.sh "./logs/${new_banner}/${new_container_name}" $new_container_name $external_ip &
+# sudo /home/student/utils/tracker.sh "/home/student/logs/${new_banner}/${new_container_name}" $new_container_name $external_ip &
 
 sudo echo "Container $container_name has been recycled successfully"
 

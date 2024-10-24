@@ -15,10 +15,10 @@ external_ip=$3
 mitm_port=$4
 attacker_ip=""
 
-file="./MITM/logs/authentication_attempts/${container_name}.log"
+file="/home/student/MITM/logs/authentication_attempts/${container_name}.log"
 
 # Redirect all standard output and error to a log file
-exec 1>>"./logs/attacker_status_${container_name}.log" 2>&1
+exec 1>>"/home/student/logs/attacker_status_${container_name}.log" 2>&1
 
 # Make sure the directory exists
 mkdir -p "$(dirname "$file")"
@@ -45,7 +45,7 @@ while inotifywait -e modify -e create "$file" 2>/dev/null; do
             sudo iptables -w --table nat --delete PREROUTING --destination $external_ip --protocol tcp --dport 22 --jump DNAT --to-destination "10.0.3.1:$mitm_port" 2>/dev/null
 
             # Starting the recycling timer
-            sudo ./timer.sh $container_name $external_ip
+            sudo /home/student/timer.sh $container_name $external_ip
             exit 0
         fi
     fi
