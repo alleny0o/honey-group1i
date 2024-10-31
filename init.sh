@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Set up log directory
+mkdir -p /home/student/ignore_logs
+
 # reset iptable rules
 sudo iptables-restore /home/student/utils/iptables_reset.txt
 
@@ -25,7 +28,10 @@ sudo DOWNLOAD_KEYSERVER="keyserver.ubuntu.com" lxc-create -n template -t downloa
 sudo lxc-start -n template
 
 # MUST WAIT FOR CONTAINER TO START
-sleep 10
+if ! sudo /home/student/check_container.sh template; then
+    echo "Failed to start container" >> /home/student/ignore_logs/init.log
+    exit 1
+fi
 
 # TODO - Add Honey to Container
 sudo /home/student/setup_honey.sh template
@@ -70,9 +76,15 @@ do
     container_name="${date}_${banner}_${external_ip}"
     mask=24
 
+    # create new container
     sudo lxc-copy -n template -N $container_name
     sudo lxc-start -n $container_name
-    sleep 10
+    
+    # MUST WAIT FOR CONTAINER TO START
+    if ! sudo /home/student/check_container.sh $container_name; then
+        echo "Failed to start container" >> /home/student/ignore_logs/init.log
+        exit 1
+    fi
 
     container_ip=$(sudo lxc-info -n $container_name -iH)
 
@@ -80,13 +92,19 @@ do
 
     # set up MITM server
     if sudo pm2 -l "/home/student/logs/${banner}/${container_name}" start /home/student/MITM/mitm.js --name "$container_name" -- -n "$container_name" -i "$container_ip" -p $mitm_port --mitm-ip 10.0.3.1 --auto-access --auto-access-fixed 1 --debug --ssh-server-banner-file /home/student/banners/${banner}.txt; then
-        echo "MITM server started successfully"
+        echo "MITM server started successfully" >> /home/student/ignore_logs/init.log
     else
-        echo "Failed to start MITM server"
+        echo "Failed to start MITM server" >> /home/student/ignore_logs/init.log
         exit 1
     fi
 
-    sleep 5
+    # Wait for MITM server to start
+    if sudo /home/student/check_mitm.sh $container_name $mitm_port; then
+        echo "MITM server started successfully" >> /home/student/ignore_logs/init.log
+    else
+        echo "Failed to start MITM server" >> /home/student/ignore_logs/init.log
+        exit 1
+    fi
 
     # set up network interface
     sudo ip link set eth3 up
@@ -98,7 +116,7 @@ do
     sudo iptables -w --table nat --insert PREROUTING --source 0.0.0.0/0 --destination $external_ip --protocol tcp --dport 22 --jump DNAT --to-destination "10.0.3.1:$mitm_port" 
     sudo sysctl -w net.ipv4.ip_forward=1
 
-    sudo /home/student/attacker_status.sh $container_name $container_ip $external_ip $mitm_port &
+    sudo /home/student/attacker_status.sh $container_name $container_ip $external_ip $mitm_port & disown
 
     # sudo /home/student/utils/tracker.sh "/home/student/logs/${banner}/${container_name}" $container_name $external_ip &
 
