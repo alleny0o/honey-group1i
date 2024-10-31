@@ -17,6 +17,11 @@ external_ip=$2
 mask=24
 date=$(date "+%F-%H-%M-%S")
 
+# Make sure these are global
+container_ip=""
+new_container_name=""
+new_banner=""
+
 # Get the MITM port
 mitm_port=$(sudo cat "/home/student/ports/${external_ip}_port.txt")
 
@@ -43,7 +48,7 @@ remove_existing() {
 
     # Remove iptables rules
     if [ -n "$attacker_ip" ]; then
-        sudo iptables -w --table nat --delete PREROUTING --source "$attacker_ip" --destination "$external_ip" --jump DNAT --to-destination "$container_ip" >/dev/null 2>&1
+        sudo iptables -w --table nat --delete PREROUTING --source "$attacker_ip" --destination "$external_ip" --jump DNAT --to-destination "$current_container_ip" >/dev/null 2>&1
         sudo iptables -w --table nat --delete PREROUTING --source "$attacker_ip" --destination "$external_ip" --protocol tcp --dport 22 --jump DNAT --to-destination "10.0.3.1:$mitm_port" >/dev/null 2>&1
     fi
 
@@ -182,7 +187,6 @@ setup_ssh
 verify_ssh_setup
 
 start_mitm  # Start MITM before setting up networking
-
 # Give MITM server time to start
 if sudo /home/student/check_mitm.sh $new_container_name $mitm_port >/dev/null 2>&1; then
     echo "MITM server started successfully" >> /home/student/ignore_logs/init.log
